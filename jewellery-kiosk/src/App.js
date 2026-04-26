@@ -13,11 +13,9 @@ function App() {
   const earringRef = useRef("/earring1.png");
 
   // --- CALIBRATION STATE ---
-  // You can adjust these sliders on the live website to find the perfect fit!
   const [offsetX, setOffsetX] = useState(15); 
   const [offsetY, setOffsetY] = useState(25); 
 
-  // We use refs for the sliders so the AI loop can read them instantly without lagging
   const offsetRefX = useRef(15);
   const offsetRefY = useRef(25);
 
@@ -72,11 +70,9 @@ function App() {
         const landmarks = results.multiFaceLandmarks[0];
         const activeImg = images[earringRef.current];
 
-        // We use the absolute widest points (cheekbones) as the stable anchor
         const leftEdge = landmarks[234];  
         const rightEdge = landmarks[454]; 
         const nose = landmarks[1];
-        const chin = landmarks[152];
 
         const rawFaceWidth = Math.abs(rightEdge.x - leftEdge.x) * canvas.width;
         const faceWidth = Math.min(rawFaceWidth, canvas.width * 0.4); 
@@ -96,15 +92,12 @@ function App() {
           const point = landmarks[anchor.id];
           if (!point) return;
 
-          // Hide if turned away
           if (anchor.side === "left" && leftDist < rightDist * 0.25) return;
           if (anchor.side === "right" && rightDist < leftDist * 0.25) return;
 
           let x = (1 - point.x) * canvas.width; 
           let y = point.y * canvas.height;
 
-          // --- THE CALIBRATION MATH ---
-          // Uses the sliders to push the earrings away from the cheekbone and down to the earlobe
           const pushX = faceWidth * (offsetRefX.current / 100);
           const dropY = faceWidth * (offsetRefY.current / 100);
 
@@ -118,7 +111,6 @@ function App() {
           if (activeImg && activeImg.complete) {
             canvasCtx.save(); 
 
-            // 3D Yaw & Gravity Physics
             const sideDist = anchor.side === "left" ? leftDist : rightDist;
             const centerRatio = sideDist / Math.abs(leftEdge.x - rightEdge.x);
             const perspectiveScale = Math.min(1, Math.max(0.15, centerRatio * 2.2));
@@ -201,7 +193,6 @@ function App() {
         </button>
       </div>
 
-      {/* --- CALIBRATION PANEL --- */}
       <div style={{ marginTop: "30px", padding: "15px", border: "1px solid #D4AF37", borderRadius: "10px", width: "90%", maxWidth: "400px", backgroundColor: "#111" }}>
         <h3 style={{ margin: "0 0 10px 0", fontSize: "1.1rem" }}>⚙️ Calibration Tool</h3>
         <p style={{ margin: "0 0 15px 0", fontSize: "0.9rem", color: "#aaa" }}>Drag to fit the earrings to your earlobes.</p>
@@ -226,4 +217,4 @@ function App() {
   );
 }
 
-export default App;
+export default App;s
