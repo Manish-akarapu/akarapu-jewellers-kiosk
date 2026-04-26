@@ -53,52 +53,65 @@ function App() {
         const landmarks = results.multiFaceLandmarks[0];
         const activeImg = images[earringRef.current];
 
-        // 1. Face Width & Size
+        // 1. Calculate Face Size for Scaling
         const rawFaceWidth = Math.abs(landmarks[454].x - landmarks[234].x) * canvas.width;
         const faceWidth = Math.min(rawFaceWidth, canvas.width * 0.4); 
         
-        const eWidth = faceWidth * 0.22; 
-        const eHeight = eWidth * 1.5; 
+        const eWidth = faceWidth * 0.25; // Made earrings slightly wider to bridge any remaining gaps
+        const eHeight = eWidth * 1.6; 
 
         const nose = landmarks[1];
-        const chin = landmarks[152];
 
+        // 2. Exact Earlobe Landmarks
         const anchors = [
-          { id: 234, side: "left" }, 
-          { id: 454, side: "right" } 
+          { id: 177, side: "left" },  // Exact left earlobe point
+          { id: 401, side: "right" }  // Exact right earlobe point
         ];
 
         anchors.forEach((anchor) => {
           const point = landmarks[anchor.id];
           if (!point) return;
 
+          // 3. Hide earring if face turns away
           const distanceToNose = Math.abs(nose.x - point.x);
           if (distanceToNose < 0.05) return; 
 
-          let x = (1 - point.x) * canvas.width;
+          // 4. Exact Coordinates
+          let x = (1 - point.x) * canvas.width; 
           let y = point.y * canvas.height;
 
-          const pitchOffset = (nose.y - chin.y) * 0.5; 
-
-          y = y + (faceWidth * 0.16) + (pitchOffset * canvas.height * 0.2); 
-
-          const dynamicPush = (faceWidth * 0.08) * (distanceToNose * 4);
-
+          // Push the earring slightly *inward* toward the cheek to prevent "air gaps" on narrow phones
+          const gapFix = (faceWidth * 0.05); 
           if (anchor.side === "left") {
-            x = x + dynamicPush; 
+            x = x + gapFix; 
           } else {
-            x = x - dynamicPush; 
+            x = x - gapFix; 
           }
 
           if (activeImg && activeImg.complete) {
-            canvasCtx.shadowColor = "rgba(0, 0, 0, 0.5)"; 
-            canvasCtx.shadowBlur = 12; 
-            canvasCtx.shadowOffsetX = anchor.side === "left" ? -5 : 5; 
-            canvasCtx.shadowOffsetY = 10; 
+            canvasCtx.save(); // Save the canvas state before drawing
 
-            canvasCtx.drawImage(activeImg, x - (eWidth / 2), y, eWidth, eHeight);
+            // 5. Dynamic Rotation (Swing physics)
+            // Calculate how tilted the head is left-to-right
+            const rollOffset = landmarks[234].y - landmarks[454].y; 
+            const rotationAngle = (anchor.side === "left") ? rollOffset * 1.5 : rollOffset * -1.5;
 
-            canvasCtx.shadowColor = "transparent";
+            // Move the "drawing cursor" to the exact earlobe point
+            canvasCtx.translate(x, y);
+            
+            // Apply rotation so the earring dangles naturally
+            canvasCtx.rotate(rotationAngle);
+
+            // Add drop shadow
+            canvasCtx.shadowColor = "rgba(0, 0, 0, 0.6)"; 
+            canvasCtx.shadowBlur = 10; 
+            canvasCtx.shadowOffsetX = anchor.side === "left" ? -4 : 4; 
+            canvasCtx.shadowOffsetY = 8; 
+
+            // Draw the earring (adjusted to hang directly *below* the anchor point)
+            canvasCtx.drawImage(activeImg, -(eWidth / 2), 0, eWidth, eHeight);
+
+            canvasCtx.restore(); // Reset the canvas for the next frame
           }
         });
       }
