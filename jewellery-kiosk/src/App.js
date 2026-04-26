@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useMemo } from "react";
 import { FaceMesh } from "@mediapipe/face_mesh";
 import * as cam from "@mediapipe/camera_utils";
 import Webcam from "react-webcam";
+import './App.css'; 
 
 function App() {
   const webcamRef = useRef(null);
@@ -60,7 +61,7 @@ function App() {
         const eHeight = eWidth * 1.5; 
 
         const nose = landmarks[1];
-        const chin = landmarks[152]; // Used to calculate up/down tilt (Pitch)
+        const chin = landmarks[152];
 
         const anchors = [
           { id: 234, side: "left" }, 
@@ -71,15 +72,13 @@ function App() {
           const point = landmarks[anchor.id];
           if (!point) return;
 
-          // 2. Visibility Check (Hides earring when you turn away completely)
           const distanceToNose = Math.abs(nose.x - point.x);
           if (distanceToNose < 0.05) return; 
 
           let x = (1 - point.x) * canvas.width;
           let y = point.y * canvas.height;
 
-          // 3. Pitch Adjustment: If user looks UP, the earrings should hang DOWN lower
-          const pitchOffset = (nose.y - chin.y) * 0.5; // Calculates head tilt up/down
+          const pitchOffset = (nose.y - chin.y) * 0.5; 
 
           y = y + (faceWidth * 0.16) + (pitchOffset * canvas.height * 0.2); 
 
@@ -92,17 +91,13 @@ function App() {
           }
 
           if (activeImg && activeImg.complete) {
-            // *** THE 2.5D MAGIC: DYNAMIC SHADOWS ***
-            // This casts a dark, blurred shadow on your neck behind the image
-            canvasCtx.shadowColor = "rgba(0, 0, 0, 0.5)"; // Semi-transparent black
-            canvasCtx.shadowBlur = 12; // Softness of the shadow
-            canvasCtx.shadowOffsetX = anchor.side === "left" ? -5 : 5; // Pushes shadow toward the neck
-            canvasCtx.shadowOffsetY = 10; // Pushes shadow down
+            canvasCtx.shadowColor = "rgba(0, 0, 0, 0.5)"; 
+            canvasCtx.shadowBlur = 12; 
+            canvasCtx.shadowOffsetX = anchor.side === "left" ? -5 : 5; 
+            canvasCtx.shadowOffsetY = 10; 
 
-            // Draw the earring
             canvasCtx.drawImage(activeImg, x - (eWidth / 2), y, eWidth, eHeight);
 
-            // Reset shadows so it doesn't mess up the next frame
             canvasCtx.shadowColor = "transparent";
           }
         });
@@ -130,53 +125,47 @@ function App() {
   }, [images]);
 
   return (
-    <div style={{ textAlign: "center", backgroundColor: "#000", minHeight: "100vh", color: "#D4AF37", fontFamily: "serif" }}>
-      <header style={{ padding: "30px" }}>
-        <h1 style={{ fontSize: "2.8rem", margin: 0, letterSpacing: "2px" }}>SHRI AKARAPU KUMARASWAMY JEWELLERS</h1>
-        <p style={{ color: "#fff", fontSize: "1.2rem", fontStyle: "italic", marginTop: "10px" }}>Virtual Try-On Suite</p>
+    <div className="app-wrapper">
+      <header className="app-header">
+        <h1>SHRI AKARAPU KUMARASWAMY JEWELLERS</h1>
+        <p>Virtual Try-On Suite</p>
       </header>
       
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginTop: "20px" }}>
-        <div style={{ position: "relative", border: "8px solid #D4AF37", borderRadius: "10px", backgroundColor: "#111", display: "inline-block", boxShadow: "0 10px 30px rgba(212, 175, 55, 0.3)" }}>
-          
+      <div className="kiosk-container">
+        <div className="video-container">
           <Webcam 
             ref={webcamRef} 
             mirrored={true} 
-            videoConstraints={{ width: 640, height: 480 }}
-            style={{ display: "block", width: "640px", height: "480px", borderRadius: "2px" }} 
+            videoConstraints={{ width: 640, height: 480, facingMode: "user" }}
+            className="video-layer" 
           />
-          
           <canvas 
             ref={canvasRef} 
-            style={{ position: "absolute", top: 0, left: 0, width: "640px", height: "480px", zIndex: 10, pointerEvents: "none" }} 
+            className="canvas-layer" 
           />
-          
         </div>
       </div>
 
-      <div style={{ marginTop: "40px" }}>
+      <div className="button-container">
         <button 
           onClick={() => changeEarring("/earring1.png")} 
-          style={activeButton === "/earring1.png" ? activeBtnStyle : btnStyle}
+          className={`kiosk-btn ${activeButton === "/earring1.png" ? "active" : ""}`}
         >
           ANTIQUE JHUMKA
         </button>
         <button 
           onClick={() => changeEarring("/earring2.png")} 
-          style={activeButton === "/earring2.png" ? activeBtnStyle : btnStyle}
+          className={`kiosk-btn ${activeButton === "/earring2.png" ? "active" : ""}`}
         >
           DIAMOND DROP
         </button>
       </div>
       
-      <footer style={{ marginTop: "30px", color: "#666", fontSize: "0.9rem" }}>
+      <footer className="app-footer">
         <p>Akarapu Jewellers Kiosk v1.0 • Nagarkurnool</p>
       </footer>
     </div>
   );
 }
-
-const btnStyle = { padding: "18px 45px", fontSize: "18px", margin: "0 20px", backgroundColor: "#222", color: "#D4AF37", border: "2px solid #D4AF37", borderRadius: "5px", cursor: "pointer", fontWeight: "bold", transition: "all 0.3s ease" };
-const activeBtnStyle = { ...btnStyle, backgroundColor: "#D4AF37", color: "black", boxShadow: "0 0 20px rgba(212, 175, 55, 0.6)" };
 
 export default App;
