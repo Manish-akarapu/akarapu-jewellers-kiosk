@@ -53,65 +53,85 @@ function App() {
         const landmarks = results.multiFaceLandmarks[0];
         const activeImg = images[earringRef.current];
 
-        // 1. Calculate Face Size for Scaling
-        const rawFaceWidth = Math.abs(landmarks[454].x - landmarks[234].x) * canvas.width;
+        // Core Anchor Points
+        const leftEarEdge = landmarks[234];  // Absolute left edge
+        const rightEarEdge = landmarks[454]; // Absolute right edge
+        const nose = landmarks[1];
+        const chin = landmarks[152];
+
+        // Responsive Face Width Math
+        const rawFaceWidth = Math.abs(rightEarEdge.x - leftEarEdge.x) * canvas.width;
         const faceWidth = Math.min(rawFaceWidth, canvas.width * 0.4); 
         
-        const eWidth = faceWidth * 0.25; // Made earrings slightly wider to bridge any remaining gaps
-        const eHeight = eWidth * 1.6; 
+        const baseWidth = faceWidth * 0.22; 
+        const baseHeight = baseWidth * 1.6; 
 
-        const nose = landmarks[1];
+        // 3D Distance calculations for rotation
+        const leftDist = Math.abs(nose.x - leftEarEdge.x);
+        const rightDist = Math.abs(nose.x - rightEarEdge.x);
 
-        // 2. Exact Earlobe Landmarks
         const anchors = [
-          { id: 177, side: "left" },  // Exact left earlobe point
-          { id: 401, side: "right" }  // Exact right earlobe point
+          { id: 234, side: "left" }, 
+          { id: 454, side: "right" } 
         ];
 
         anchors.forEach((anchor) => {
           const point = landmarks[anchor.id];
           if (!point) return;
 
-          // 3. Hide earring if face turns away
-          const distanceToNose = Math.abs(nose.x - point.x);
-          if (distanceToNose < 0.05) return; 
+          // 1. INSTANT OCCLUSION: Hide if ear turns behind cheek
+          if (anchor.side === "left" && leftDist < rightDist * 0.25) return;
+          if (anchor.side === "right" && rightDist < leftDist * 0.25) return;
 
-          // 4. Exact Coordinates
+          // 2. BASE COORDINATES
           let x = (1 - point.x) * canvas.width; 
           let y = point.y * canvas.height;
 
-          // Push the earring slightly *inward* toward the cheek to prevent "air gaps" on narrow phones
-          const gapFix = (faceWidth * 0.05); 
+          // 3. EXACT EAR LOBE DROP 
+          // Drop down from the top ear edge, adjusting dynamically if looking up/down
+          const pitch = (nose.y - chin.y); 
+          y = y + (faceWidth * 0.12) + (pitch * canvas.height * 0.2);
+
+          // 4. THE CHEEKBONE FIX 
+          // Force the earring outward horizontally so it floats on the ear, never the cheek
+          const outwardPush = faceWidth * 0.05;
           if (anchor.side === "left") {
-            x = x + gapFix; 
+            x = x - outwardPush; 
           } else {
-            x = x - gapFix; 
+            x = x + outwardPush; 
           }
 
           if (activeImg && activeImg.complete) {
-            canvasCtx.save(); // Save the canvas state before drawing
+            canvasCtx.save(); 
 
-            // 5. Dynamic Rotation (Swing physics)
-            // Calculate how tilted the head is left-to-right
-            const rollOffset = landmarks[234].y - landmarks[454].y; 
-            const rotationAngle = (anchor.side === "left") ? rollOffset * 1.5 : rollOffset * -1.5;
+            // 5. THE 3D YAW FIX 
+            // Squish the image width as you turn your head to simulate 3D rotation
+            const sideDist = anchor.side === "left" ? leftDist : rightDist;
+            const centerRatio = sideDist / Math.abs(leftEarEdge.x - rightEarEdge.x);
+            const perspectiveScale = Math.min(1, Math.max(0.15, centerRatio * 2.2));
+            const currentWidth = baseWidth * perspectiveScale;
 
-            // Move the "drawing cursor" to the exact earlobe point
+            // 6. TRUE PENDULUM GRAVITY 
+            // Calculate true head tilt in radians so earrings dangle naturally
+            const dy = rightEarEdge.y - leftEarEdge.y;
+            const dx = rightEarEdge.x - leftEarEdge.x;
+            const headAngle = Math.atan2(dy, dx); 
+            
             canvasCtx.translate(x, y);
             
-            // Apply rotation so the earring dangles naturally
-            canvasCtx.rotate(rotationAngle);
+            // Counter-rotate the image slightly against the head tilt so gravity pulls it down
+            canvasCtx.rotate(-headAngle * 0.75); 
 
-            // Add drop shadow
+            // Cast dynamic shadow
             canvasCtx.shadowColor = "rgba(0, 0, 0, 0.6)"; 
-            canvasCtx.shadowBlur = 10; 
+            canvasCtx.shadowBlur = 8; 
             canvasCtx.shadowOffsetX = anchor.side === "left" ? -4 : 4; 
             canvasCtx.shadowOffsetY = 8; 
 
-            // Draw the earring (adjusted to hang directly *below* the anchor point)
-            canvasCtx.drawImage(activeImg, -(eWidth / 2), 0, eWidth, eHeight);
+            // Draw image exactly on the new suspended anchor
+            canvasCtx.drawImage(activeImg, -(currentWidth / 2), 0, currentWidth, baseHeight);
 
-            canvasCtx.restore(); // Reset the canvas for the next frame
+            canvasCtx.restore(); 
           }
         });
       }
@@ -175,7 +195,7 @@ function App() {
       </div>
       
       <footer className="app-footer">
-        <p>Akarapu Jewellers Kiosk v1.0 • Nagarkurnool</p>
+        <p>Akarapu Jewellers Kiosk v1.0</p>
       </footer>
     </div>
   );
