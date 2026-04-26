@@ -12,6 +12,15 @@ function App() {
   const [activeButton, setActiveButton] = useState("/earring1.png");
   const earringRef = useRef("/earring1.png");
 
+  // --- CALIBRATION STATE ---
+  // You can adjust these sliders on the live website to find the perfect fit!
+  const [offsetX, setOffsetX] = useState(15); 
+  const [offsetY, setOffsetY] = useState(25); 
+
+  // We use refs for the sliders so the AI loop can read them instantly without lagging
+  const offsetRefX = useRef(15);
+  const offsetRefY = useRef(25);
+
   const images = useMemo(() => {
     const i1 = new Image(); i1.src = "/earring1.png";
     const i2 = new Image(); i2.src = "/earring2.png";
@@ -21,6 +30,16 @@ function App() {
   const changeEarring = (style) => {
     setActiveButton(style);
     earringRef.current = style; 
+  };
+
+  const handleSliderX = (e) => {
+    setOffsetX(Number(e.target.value));
+    offsetRefX.current = Number(e.target.value);
+  };
+
+  const handleSliderY = (e) => {
+    setOffsetY(Number(e.target.value));
+    offsetRefY.current = Number(e.target.value);
   };
 
   useEffect(() => {
@@ -53,6 +72,7 @@ function App() {
         const landmarks = results.multiFaceLandmarks[0];
         const activeImg = images[earringRef.current];
 
+        // We use the absolute widest points (cheekbones) as the stable anchor
         const leftEdge = landmarks[234];  
         const rightEdge = landmarks[454]; 
         const nose = landmarks[1];
@@ -67,7 +87,6 @@ function App() {
         const leftDist = Math.abs(nose.x - leftEdge.x);
         const rightDist = Math.abs(nose.x - rightEdge.x);
 
-        // BACK TO THE OUTER EDGES
         const anchors = [
           { id: 234, side: "left" }, 
           { id: 454, side: "right" } 
@@ -77,28 +96,29 @@ function App() {
           const point = landmarks[anchor.id];
           if (!point) return;
 
+          // Hide if turned away
           if (anchor.side === "left" && leftDist < rightDist * 0.25) return;
           if (anchor.side === "right" && rightDist < leftDist * 0.25) return;
 
           let x = (1 - point.x) * canvas.width; 
           let y = point.y * canvas.height;
 
-          // 1. FORCE IT OUTSIDE THE FACE (Off the beard/cheeks)
-          const outwardPush = faceWidth * 0.12; 
-          if (anchor.side === "left") {
-            x = x - outwardPush; 
-          } else {
-            x = x + outwardPush; 
-          }
+          // --- THE CALIBRATION MATH ---
+          // Uses the sliders to push the earrings away from the cheekbone and down to the earlobe
+          const pushX = faceWidth * (offsetRefX.current / 100);
+          const dropY = faceWidth * (offsetRefY.current / 100);
 
-          // 2. DROP IT DOWN TO THE EARLOBE
-          const downwardDrop = faceWidth * 0.15;
-          const pitch = (nose.y - chin.y) * canvas.height * 0.1;
-          y = y + downwardDrop + pitch;
+          if (anchor.side === "left") {
+            x = x - pushX; 
+          } else {
+            x = x + pushX; 
+          }
+          y = y + dropY;
 
           if (activeImg && activeImg.complete) {
             canvasCtx.save(); 
 
+            // 3D Yaw & Gravity Physics
             const sideDist = anchor.side === "left" ? leftDist : rightDist;
             const centerRatio = sideDist / Math.abs(leftEdge.x - rightEdge.x);
             const perspectiveScale = Math.min(1, Math.max(0.15, centerRatio * 2.2));
@@ -116,7 +136,6 @@ function App() {
             canvasCtx.shadowOffsetX = anchor.side === "left" ? -4 : 4; 
             canvasCtx.shadowOffsetY = 8; 
 
-            // Center the image directly on this new floating coordinate
             canvasCtx.drawImage(activeImg, -(currentWidth / 2), 0, currentWidth, baseHeight);
 
             canvasCtx.restore(); 
@@ -181,9 +200,27 @@ function App() {
           DIAMOND DROP
         </button>
       </div>
+
+      {/* --- CALIBRATION PANEL --- */}
+      <div style={{ marginTop: "30px", padding: "15px", border: "1px solid #D4AF37", borderRadius: "10px", width: "90%", maxWidth: "400px", backgroundColor: "#111" }}>
+        <h3 style={{ margin: "0 0 10px 0", fontSize: "1.1rem" }}>⚙️ Calibration Tool</h3>
+        <p style={{ margin: "0 0 15px 0", fontSize: "0.9rem", color: "#aaa" }}>Drag to fit the earrings to your earlobes.</p>
+        
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+          <label style={{ width: "100px", textAlign: "left" }}>In / Out:</label>
+          <input type="range" min="0" max="40" value={offsetX} onChange={handleSliderX} style={{ flex: 1 }} />
+          <span style={{ width: "30px", textAlign: "right" }}>{offsetX}</span>
+        </div>
+        
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <label style={{ width: "100px", textAlign: "left" }}>Up / Down:</label>
+          <input type="range" min="-10" max="50" value={offsetY} onChange={handleSliderY} style={{ flex: 1 }} />
+          <span style={{ width: "30px", textAlign: "right" }}>{offsetY}</span>
+        </div>
+      </div>
       
       <footer className="app-footer">
-        <p>Akarapu Jewellers Kiosk v1.0 • Nagarkurnool</p>
+        <p>Akarapu Jewellers Kiosk v1.0</p>
       </footer>
     </div>
   );
