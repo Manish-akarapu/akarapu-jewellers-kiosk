@@ -53,66 +53,59 @@ function App() {
         const landmarks = results.multiFaceLandmarks[0];
         const activeImg = images[earringRef.current];
 
-        // Cheekbones used strictly for measuring face width/rotation, NOT drawing
-        const leftCheek = landmarks[234];  
-        const rightCheek = landmarks[454]; 
+        const leftEdge = landmarks[234];  
+        const rightEdge = landmarks[454]; 
         const nose = landmarks[1];
         const chin = landmarks[152];
 
-        // Responsive Face Width Math
-        const rawFaceWidth = Math.abs(rightCheek.x - leftCheek.x) * canvas.width;
+        const rawFaceWidth = Math.abs(rightEdge.x - leftEdge.x) * canvas.width;
         const faceWidth = Math.min(rawFaceWidth, canvas.width * 0.4); 
         
         const baseWidth = faceWidth * 0.22; 
         const baseHeight = baseWidth * 1.6; 
 
-        // 3D Distance calculations for rotation
-        const leftDist = Math.abs(nose.x - leftCheek.x);
-        const rightDist = Math.abs(nose.x - rightCheek.x);
+        const leftDist = Math.abs(nose.x - leftEdge.x);
+        const rightDist = Math.abs(nose.x - rightEdge.x);
 
-        // THE FIX: The ACTUAL exact earlobe landmarks
+        // BACK TO THE OUTER EDGES
         const anchors = [
-          { id: 177, side: "left" }, 
-          { id: 401, side: "right" } 
+          { id: 234, side: "left" }, 
+          { id: 454, side: "right" } 
         ];
 
         anchors.forEach((anchor) => {
           const point = landmarks[anchor.id];
           if (!point) return;
 
-          // 1. INSTANT OCCLUSION: Hide if ear turns behind cheek
           if (anchor.side === "left" && leftDist < rightDist * 0.25) return;
           if (anchor.side === "right" && rightDist < leftDist * 0.25) return;
 
-          // 2. BASE COORDINATES (Right on the earlobe)
           let x = (1 - point.x) * canvas.width; 
           let y = point.y * canvas.height;
 
-          // 3. PITCH ADJUSTMENT (Looking up/down)
-          const pitch = (nose.y - chin.y); 
-          y = y + (pitch * canvas.height * 0.15); // Scaled back so it doesn't drop to the neck
-
-          // 4. TINY OUTWARD PUSH
-          // Just enough to clear the jawline, but not enough to float in the air
-          const outwardPush = faceWidth * 0.02;
+          // 1. FORCE IT OUTSIDE THE FACE (Off the beard/cheeks)
+          const outwardPush = faceWidth * 0.12; 
           if (anchor.side === "left") {
             x = x - outwardPush; 
           } else {
             x = x + outwardPush; 
           }
 
+          // 2. DROP IT DOWN TO THE EARLOBE
+          const downwardDrop = faceWidth * 0.15;
+          const pitch = (nose.y - chin.y) * canvas.height * 0.1;
+          y = y + downwardDrop + pitch;
+
           if (activeImg && activeImg.complete) {
             canvasCtx.save(); 
 
-            // 5. THE 3D YAW SQUISH 
             const sideDist = anchor.side === "left" ? leftDist : rightDist;
-            const centerRatio = sideDist / Math.abs(leftCheek.x - rightCheek.x);
+            const centerRatio = sideDist / Math.abs(leftEdge.x - rightEdge.x);
             const perspectiveScale = Math.min(1, Math.max(0.15, centerRatio * 2.2));
             const currentWidth = baseWidth * perspectiveScale;
 
-            // 6. TRUE PENDULUM GRAVITY 
-            const dy = rightCheek.y - leftCheek.y;
-            const dx = rightCheek.x - leftCheek.x;
+            const dy = rightEdge.y - leftEdge.y;
+            const dx = rightEdge.x - leftEdge.x;
             const headAngle = Math.atan2(dy, dx); 
             
             canvasCtx.translate(x, y);
@@ -123,8 +116,8 @@ function App() {
             canvasCtx.shadowOffsetX = anchor.side === "left" ? -4 : 4; 
             canvasCtx.shadowOffsetY = 8; 
 
-            // Shift it slightly UP (-(baseHeight * 0.1)) so the earring ring actually overlaps the earlobe
-            canvasCtx.drawImage(activeImg, -(currentWidth / 2), -(baseHeight * 0.1), currentWidth, baseHeight);
+            // Center the image directly on this new floating coordinate
+            canvasCtx.drawImage(activeImg, -(currentWidth / 2), 0, currentWidth, baseHeight);
 
             canvasCtx.restore(); 
           }
