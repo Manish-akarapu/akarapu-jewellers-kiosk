@@ -12,12 +12,12 @@ function App() {
   const [activeButton, setActiveButton] = useState("/earring1.png");
   const earringRef = useRef("/earring1.png");
 
-  // --- CALIBRATION STATE ---
-  const [offsetX, setOffsetX] = useState(15); 
-  const [offsetY, setOffsetY] = useState(25); 
+  // --- CALIBRATION STATE ADDED HERE ---
+  const [offsetX, setOffsetX] = useState(0); 
+  const [offsetY, setOffsetY] = useState(0); 
 
-  const offsetRefX = useRef(15);
-  const offsetRefY = useRef(25);
+  const offsetRefX = useRef(0);
+  const offsetRefY = useRef(0);
 
   const images = useMemo(() => {
     const i1 = new Image(); i1.src = "/earring1.png";
@@ -30,6 +30,7 @@ function App() {
     earringRef.current = style; 
   };
 
+  // --- SLIDER HANDLERS ---
   const handleSliderX = (e) => {
     setOffsetX(Number(e.target.value));
     offsetRefX.current = Number(e.target.value);
@@ -70,18 +71,15 @@ function App() {
         const landmarks = results.multiFaceLandmarks[0];
         const activeImg = images[earringRef.current];
 
-        const leftEdge = landmarks[234];  
-        const rightEdge = landmarks[454]; 
-        const nose = landmarks[1];
-
-        const rawFaceWidth = Math.abs(rightEdge.x - leftEdge.x) * canvas.width;
+        // 1. Face Width & Size
+        const rawFaceWidth = Math.abs(landmarks[454].x - landmarks[234].x) * canvas.width;
         const faceWidth = Math.min(rawFaceWidth, canvas.width * 0.4); 
         
-        const baseWidth = faceWidth * 0.22; 
-        const baseHeight = baseWidth * 1.6; 
+        const eWidth = faceWidth * 0.22; 
+        const eHeight = eWidth * 1.5; 
 
-        const leftDist = Math.abs(nose.x - leftEdge.x);
-        const rightDist = Math.abs(nose.x - rightEdge.x);
+        const nose = landmarks[1];
+        const chin = landmarks[152];
 
         const anchors = [
           { id: 234, side: "left" }, 
@@ -92,45 +90,45 @@ function App() {
           const point = landmarks[anchor.id];
           if (!point) return;
 
-          if (anchor.side === "left" && leftDist < rightDist * 0.25) return;
-          if (anchor.side === "right" && rightDist < leftDist * 0.25) return;
+          const distanceToNose = Math.abs(nose.x - point.x);
+          if (distanceToNose < 0.05) return; 
 
-          let x = (1 - point.x) * canvas.width; 
+          let x = (1 - point.x) * canvas.width;
           let y = point.y * canvas.height;
 
-          const pushX = faceWidth * (offsetRefX.current / 100);
-          const dropY = faceWidth * (offsetRefY.current / 100);
+          const pitchOffset = (nose.y - chin.y) * 0.5; 
+
+          y = y + (faceWidth * 0.16) + (pitchOffset * canvas.height * 0.2); 
+
+          const dynamicPush = (faceWidth * 0.08) * (distanceToNose * 4);
 
           if (anchor.side === "left") {
-            x = x - pushX; 
+            x = x + dynamicPush; 
           } else {
-            x = x + pushX; 
+            x = x - dynamicPush; 
           }
-          y = y + dropY;
+
+          // --- CALIBRATION MATH INJECTED HERE ---
+          const calibPushX = faceWidth * (offsetRefX.current / 100);
+          const calibDropY = faceWidth * (offsetRefY.current / 100);
+
+          if (anchor.side === "left") {
+            x = x - calibPushX; 
+          } else {
+            x = x + calibPushX; 
+          }
+          y = y + calibDropY;
+          // --------------------------------------
 
           if (activeImg && activeImg.complete) {
-            canvasCtx.save(); 
+            canvasCtx.shadowColor = "rgba(0, 0, 0, 0.5)"; 
+            canvasCtx.shadowBlur = 12; 
+            canvasCtx.shadowOffsetX = anchor.side === "left" ? -5 : 5; 
+            canvasCtx.shadowOffsetY = 10; 
 
-            const sideDist = anchor.side === "left" ? leftDist : rightDist;
-            const centerRatio = sideDist / Math.abs(leftEdge.x - rightEdge.x);
-            const perspectiveScale = Math.min(1, Math.max(0.15, centerRatio * 2.2));
-            const currentWidth = baseWidth * perspectiveScale;
+            canvasCtx.drawImage(activeImg, x - (eWidth / 2), y, eWidth, eHeight);
 
-            const dy = rightEdge.y - leftEdge.y;
-            const dx = rightEdge.x - leftEdge.x;
-            const headAngle = Math.atan2(dy, dx); 
-            
-            canvasCtx.translate(x, y);
-            canvasCtx.rotate(-headAngle * 0.75); 
-
-            canvasCtx.shadowColor = "rgba(0, 0, 0, 0.6)"; 
-            canvasCtx.shadowBlur = 8; 
-            canvasCtx.shadowOffsetX = anchor.side === "left" ? -4 : 4; 
-            canvasCtx.shadowOffsetY = 8; 
-
-            canvasCtx.drawImage(activeImg, -(currentWidth / 2), 0, currentWidth, baseHeight);
-
-            canvasCtx.restore(); 
+            canvasCtx.shadowColor = "transparent";
           }
         });
       }
@@ -193,25 +191,27 @@ function App() {
         </button>
       </div>
 
+      {/* --- CALIBRATION UI ADDED HERE --- */}
       <div style={{ marginTop: "30px", padding: "15px", border: "1px solid #D4AF37", borderRadius: "10px", width: "90%", maxWidth: "400px", backgroundColor: "#111" }}>
         <h3 style={{ margin: "0 0 10px 0", fontSize: "1.1rem" }}>⚙️ Calibration Tool</h3>
         <p style={{ margin: "0 0 15px 0", fontSize: "0.9rem", color: "#aaa" }}>Drag to fit the earrings to your earlobes.</p>
         
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
           <label style={{ width: "100px", textAlign: "left" }}>In / Out:</label>
-          <input type="range" min="0" max="40" value={offsetX} onChange={handleSliderX} style={{ flex: 1 }} />
+          <input type="range" min="-20" max="40" value={offsetX} onChange={handleSliderX} style={{ flex: 1 }} />
           <span style={{ width: "30px", textAlign: "right" }}>{offsetX}</span>
         </div>
         
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <label style={{ width: "100px", textAlign: "left" }}>Up / Down:</label>
-          <input type="range" min="-10" max="50" value={offsetY} onChange={handleSliderY} style={{ flex: 1 }} />
+          <input type="range" min="-20" max="50" value={offsetY} onChange={handleSliderY} style={{ flex: 1 }} />
           <span style={{ width: "30px", textAlign: "right" }}>{offsetY}</span>
         </div>
       </div>
+      {/* ---------------------------------- */}
       
       <footer className="app-footer">
-        <p>Akarapu Jewellers Kiosk v1.0</p>
+        <p>Akarapu Jewellers Kiosk v1.0 • Nagarkurnool</p>
       </footer>
     </div>
   );
