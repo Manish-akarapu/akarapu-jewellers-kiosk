@@ -99,6 +99,7 @@ body { margin: 0; overflow: hidden; background: #000; font-family: 'Georgia', se
 .calibration-panel input[type="range"] {
   width: 150px;
   cursor: pointer;
+  accent-color: #D4AF37;
 }
 
 /* --- PREMIUM LOADING SPLASH SCREEN --- */

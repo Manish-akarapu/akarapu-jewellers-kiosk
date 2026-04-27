@@ -4,15 +4,15 @@ import * as cam from "@mediapipe/camera_utils";
 import Webcam from "react-webcam";
 import './App.css'; 
 
-// --- THE MASTER CATALOG WITH CUSTOM SIZING ---
-// w: width relative to the face (0.22 is normal, 0.15 is narrow)
-// h: height multiplier (1.5 is standard, 1.8 is long/dangling)
+// --- THE MASTER CATALOG WITH MEMORY ---
+// w: width, h: height
+// x: horizontal perfect spot, y: vertical perfect spot
 const EARRING_CATALOG = [
-  { id: "e1", name: "ANTIQUE JHUMKA", path: "/e1.png", w: 0.22, h: 1.5 },
-  { id: "e2", name: "DIAMOND DROP", path: "/e2.png", w: 0.15, h: 1.6 }, 
-  { id: "e3", name: "NAWABI JHUMKA", path: "/e3.png", w: 0.22, h: 1.5 },
-  { id: "e4", name: "TEARDROP SWIRL", path: "/e4.png", w: 0.17, h: 1.3 }, 
-  { id: "e5", name: "GOLD CHANDELIER", path: "/e5.png", w: 0.24, h: 1.4 }  
+  { id: "e1", name: "ANTIQUE JHUMKA", path: "/e1.png", w: 0.22, h: 1.5, x: 0, y: 13 },
+  { id: "e2", name: "DIAMOND DROP", path: "/e2.png", w: 0.15, h: 1.6, x: 0, y: 13 }, 
+  { id: "e3", name: "NAWABI JHUMKA", path: "/e3.png", w: 0.22, h: 1.5, x: 0, y: 13 },
+  { id: "e4", name: "TEARDROP SWIRL", path: "/e4.png", w: 0.17, h: 1.3, x: 0, y: 13 }, 
+  { id: "e5", name: "GOLD CHANDELIER", path: "/e5.png", w: 0.24, h: 1.4, x: 0, y: 13 }  
 ];
 
 function App() {
@@ -23,12 +23,13 @@ function App() {
   const [activeItem, setActiveItem] = useState(EARRING_CATALOG[0].path);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  const [offsetX, setOffsetX] = useState(0);
-  const [offsetY, setOffsetY] = useState(13);
+  // Sliders now start at the exact position of the first earring
+  const [offsetX, setOffsetX] = useState(EARRING_CATALOG[0].x);
+  const [offsetY, setOffsetY] = useState(EARRING_CATALOG[0].y);
   
   const itemRef = useRef(EARRING_CATALOG[0].path);
-  const offsetRefX = useRef(0);
-  const offsetRefY = useRef(13);
+  const offsetRefX = useRef(EARRING_CATALOG[0].x);
+  const offsetRefY = useRef(EARRING_CATALOG[0].y);
 
   const images = useMemo(() => {
     const obj = {};
@@ -40,9 +41,16 @@ function App() {
     return obj;
   }, []);
 
-  const handleUpdateItem = (path) => {
-    setActiveItem(path);
-    itemRef.current = path;
+  // --- THE NEW AUTO-JUMP LOGIC ---
+  const handleUpdateItem = (item) => {
+    setActiveItem(item.path);
+    itemRef.current = item.path;
+    
+    // Automatically move the sliders to the saved perfect spots
+    setOffsetX(item.x);
+    setOffsetY(item.y);
+    offsetRefX.current = item.x;
+    offsetRefY.current = item.y;
   };
 
   useEffect(() => {
@@ -70,7 +78,6 @@ function App() {
       }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // --- HIGH QUALITY RENDERING FIX ---
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
 
@@ -80,9 +87,7 @@ function App() {
         const chin = landmarks[152];
         const nose = landmarks[1];
 
-        // Fetch the specific sizing for the active earring
         const activeData = EARRING_CATALOG.find(item => item.path === itemRef.current) || EARRING_CATALOG[0];
-
         const anchors = [{ id: 234, side: "left" }, { id: 454, side: "right" }];
         
         anchors.forEach(a => {
@@ -92,16 +97,13 @@ function App() {
           let x = (1 - pt.x) * canvas.width;
           let y = pt.y * canvas.height;
 
-          // Pitch adjustment (moves earring up/down when looking up/down)
           const pitchOffset = (nose.y - chin.y) * 0.5;
           y = y + (faceWidth * 0.16) + (pitchOffset * canvas.height * 0.2); 
 
-          // Apply UI calibration offsets
           y = y + (faceWidth * (offsetRefY.current / 100));
           const push = faceWidth * (offsetRefX.current / 100);
           x = (a.side === "left") ? x - push : x + push;
 
-          // Scale using custom width (w) and height (h)
           const eW = faceWidth * activeData.w;
           const eH = eW * activeData.h;
 
@@ -147,7 +149,7 @@ function App() {
         {EARRING_CATALOG.map((item) => (
           <button 
             key={item.id}
-            onClick={() => handleUpdateItem(item.path)} 
+            onClick={() => handleUpdateItem(item)} 
             className={activeItem === item.path ? "active" : ""}
             style={{ marginBottom: "10px" }}
           >
@@ -157,8 +159,10 @@ function App() {
       </div>
 
       <div className="calibration-panel">
-        <label>Fit Adjust: </label>
+        <label>X: <b>{offsetX}</b></label>
         <input type="range" min="-20" max="40" value={offsetX} onChange={(e) => {setOffsetX(Number(e.target.value)); offsetRefX.current = Number(e.target.value);}} />
+        
+        <label style={{marginLeft: "15px"}}>Y: <b>{offsetY}</b></label>
         <input type="range" min="-10" max="50" value={offsetY} onChange={(e) => {setOffsetY(Number(e.target.value)); offsetRefY.current = Number(e.target.value);}} />
       </div>
     </div>
