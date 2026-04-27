@@ -14,7 +14,6 @@ function App() {
   const [showExtra, setShowExtra] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Calibration State (Restored for UI updates)
   const [offsetX, setOffsetX] = useState(0);
   const [offsetY, setOffsetY] = useState(13);
   
@@ -56,7 +55,7 @@ function App() {
     faceMesh.setOptions({
       maxNumFaces: 1,
       refineLandmarks: true,
-      minDetectionConfidence: 0.7, // Lowered slightly for faster detection
+      minDetectionConfidence: 0.7,
       minTrackingConfidence: 0.7 
     });
 
@@ -77,7 +76,7 @@ function App() {
         const landmarks = results.multiFaceLandmarks[0];
         const faceWidth = Math.abs(landmarks[454].x - landmarks[234].x) * canvas.width;
 
-        // --- DRAWING: EARRINGS ---
+        // --- 1. EARRINGS & BUTTERFLY FIX ---
         if (categoryRef.current === "earrings") {
           const anchors = [{ id: 234, side: "left" }, { id: 454, side: "right" }];
           anchors.forEach(a => {
@@ -92,37 +91,64 @@ function App() {
             if (images[itemRef.current]) ctx.drawImage(images[itemRef.current], x - eW/2, y, eW, eH);
 
             if (extraRef.current) {
-              const exW = eW * 0.6;
-              ctx.drawImage(images["/extra.png"], x + (a.side === "left" ? 15 : -15), y - 25, exW, exW);
+              // FIX: Made the butterfly tiny (25% of main earring) and moved it slightly up the lobe
+              const exW = eW * 0.25; 
+              const exX = x + (a.side === "left" ? (faceWidth * 0.03) : -(faceWidth * 0.03));
+              const exY = y - (faceWidth * 0.05);
+              ctx.drawImage(images["/extra.png"], exX - exW/2, exY, exW, exW);
             }
           });
         }
 
-        // --- DRAWING: NATH ---
+        // --- 2. NATH ROTATION FIX ---
         if (categoryRef.current === "nose") {
           const nostril = landmarks[279];
           const sideFace = landmarks[234];
           let nx = (1 - nostril.x) * canvas.width;
           let ny = nostril.y * canvas.height;
           let sx = (1 - sideFace.x) * canvas.width;
-          const nathWidth = Math.abs(sx - nx) * 1.1; 
-          const angle = Math.atan2(sideFace.y - nostril.y, sideFace.x - nostril.x);
+          let sy = sideFace.y * canvas.height;
+          
+          // FIX: Calculate the exact distance and angle to the earlobe
+          const dx = sx - nx;
+          const dy = sy - ny;
+          const nathWidth = Math.sqrt(dx*dx + dy*dy) * 1.05; 
+          const angle = Math.atan2(dy, dx); 
 
           ctx.save();
           ctx.translate(nx, ny);
-          ctx.rotate(-angle * 0.5);
-          if (images["/nath.png"]) ctx.drawImage(images["/nath.png"], -10, -20, nathWidth, faceWidth * 0.4);
+          ctx.rotate(angle); // FIX: Chain now points perfectly to the ear
+          
+          if (images["/nath.png"]) {
+            const nathHeight = faceWidth * 0.4;
+            // Adjust X, Y so the nose ring centers on the nostril while the chain stretches out
+            ctx.drawImage(images["/nath.png"], -nathHeight*0.4, -nathHeight*0.4, nathWidth + (nathHeight*0.3), nathHeight);
+          }
           ctx.restore();
         }
 
-        // --- DRAWING: NECKLACE ---
+        // --- 3. KANTHI VS PULI GORU FIX ---
         if (categoryRef.current === "necklace") {
           const chin = landmarks[152];
+          const leftJaw = landmarks[132];
+          const rightJaw = landmarks[361];
           let cx = (1 - chin.x) * canvas.width;
-          let cy = chin.y * canvas.height + (faceWidth * 0.1);
-          const nWidth = faceWidth * 1.4;
-          const nHeight = nWidth * 0.9;
-          if (images[itemRef.current]) ctx.drawImage(images[itemRef.current], cx - nWidth/2, cy, nWidth, nHeight);
+          let cy = chin.y * canvas.height;
+          let jawWidth = Math.abs((1 - leftJaw.x) - (1 - rightJaw.x)) * canvas.width;
+
+          if (itemRef.current === "/kanthi.png") {
+            // FIX: Kanthi (Choker) - Hugs the neck right beneath the chin
+            let kWidth = jawWidth * 1.3;
+            let kHeight = kWidth * 0.6;
+            let kY = cy - (kHeight * 0.15); // Pulled UP
+            if (images[itemRef.current]) ctx.drawImage(images[itemRef.current], cx - kWidth/2, kY, kWidth, kHeight);
+          } else {
+            // FIX: Puli Goru (Long Chain) - Hangs down to the chest
+            let pWidth = faceWidth * 1.4;
+            let pHeight = pWidth * 1.1;
+            let pY = cy + (faceWidth * 0.08); // Pushed DOWN
+            if (images[itemRef.current]) ctx.drawImage(images[itemRef.current], cx - pWidth/2, pY, pWidth, pHeight);
+          }
         }
       }
     });
