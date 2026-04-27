@@ -4,14 +4,14 @@ import * as cam from "@mediapipe/camera_utils";
 import Webcam from "react-webcam";
 import './App.css'; 
 
-// --- THE MASTER CATALOG WITH MEMORY ---
-// These are your exact saved coordinates. They will work perfectly again.
+// --- THE MASTER CATALOG ---
+// Coordinates reset to 0 because we are now perfectly anchored to the earlobes!
 const EARRING_CATALOG = [
-  { id: "e1", name: "ANTIQUE JHUMKA", path: "/e1.png", w: 0.22, h: 1.5, x: -6, y: 0 },
-  { id: "e2", name: "DIAMOND DROP", path: "/e2.png", w: 0.15, h: 1.6, x: -4, y: 3 }, 
-  { id: "e3", name: "NAWABI JHUMKA", path: "/e3.png", w: 0.22, h: 1.5, x: -5, y: 1 },
-  { id: "e4", name: "TEARDROP SWIRL", path: "/e4.png", w: 0.17, h: 1.3, x: -3, y: 3 }, 
-  { id: "e5", name: "GOLD CHANDELIER", path: "/e5.png", w: 0.24, h: 1.4, x: -3, y: 5 }  
+  { id: "e1", name: "ANTIQUE JHUMKA", path: "/e1.png", w: 0.22, h: 1.5, x: 0, y: 0 },
+  { id: "e2", name: "DIAMOND DROP", path: "/e2.png", w: 0.15, h: 1.6, x: 0, y: 0 }, 
+  { id: "e3", name: "NAWABI JHUMKA", path: "/e3.png", w: 0.22, h: 1.5, x: 0, y: 0 },
+  { id: "e4", name: "TEARDROP SWIRL", path: "/e4.png", w: 0.17, h: 1.3, x: 0, y: 0 }, 
+  { id: "e5", name: "GOLD CHANDELIER", path: "/e5.png", w: 0.24, h: 1.4, x: 0, y: 0 }  
 ];
 
 function App() {
@@ -83,64 +83,63 @@ function App() {
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         const landmarks = results.multiFaceLandmarks[0];
         const faceWidth = Math.abs(landmarks[454].x - landmarks[234].x) * canvas.width;
-        const chin = landmarks[152];
-        const nose = landmarks[1];
         
-        // --- FIXED MIRROR MATH FOR GRAVITY & TURN ---
-        // We MUST invert X (1 - x) so the math matches the mirrored screen you see
-        const screenNoseX = 1 - nose.x;
-        const screenLeftCheekX = 1 - landmarks[234].x;
-        const screenRightCheekX = 1 - landmarks[454].x;
-        const screenLeftEye = { x: 1 - landmarks[33].x, y: landmarks[33].y };
-        const screenRightEye = { x: 1 - landmarks[263].x, y: landmarks[263].y };
+        // --- 1. PERFECT MIRROR MATH ---
+        // We explicitly calculate the mirrored screen positions
+        const screenNoseX = 1 - landmarks[1].x;
+        const screenLeftCheekX = 1 - landmarks[454].x; // Mirrored Left edge
+        const screenRightCheekX = 1 - landmarks[234].x; // Mirrored Right edge
+        
+        // Turn Ratio (0.0 = looking left edge, 1.0 = looking right edge, 0.5 = forward)
+        const turnRatio = (screenNoseX - screenLeftCheekX) / (screenRightCheekX - screenLeftCheekX);
 
-        // Gravity Tilt Math
-        const dx = screenRightEye.x - screenLeftEye.x;
-        const dy = screenRightEye.y - screenLeftEye.y;
-        const headRoll = Math.atan2(dy, dx); 
+        // Safe Gravity Tilt (Impossible to flip upside down)
+        const screenLeftEyeY = landmarks[263].y;
+        const screenRightEyeY = landmarks[33].y;
+        const safeTilt = (screenRightEyeY - screenLeftEyeY) * 1.5; 
 
-        // Turn Math (0.0 = looking left, 1.0 = looking right, 0.5 = center)
-        const yawRatio = (screenNoseX - screenLeftCheekX) / (screenRightCheekX - screenLeftCheekX);
-
-        // --- RESTORED ORIGINAL POSITIONING ANCHORS ---
-        const anchors = [{ id: 234, side: "left" }, { id: 454, side: "right" }];
+        // --- 2. THE TRUE EARLOBES ---
+        // 361 is the user's right earlobe (Appears on Screen Left)
+        // 132 is the user's left earlobe (Appears on Screen Right)
+        const anchors = [
+          { id: 361, side: "screen-left" }, 
+          { id: 132, side: "screen-right" }
+        ];
+        
         const activeData = EARRING_CATALOG.find(item => item.path === itemRef.current) || EARRING_CATALOG[0];
-        
+
         anchors.forEach(a => {
           const pt = landmarks[a.id];
           if (!pt) return;
 
-          // --- THIS LINE WAS MISSING! Restored the (1 - pt.x) mirror compensation ---
+          // Accurately map to the mirrored canvas
           let x = (1 - pt.x) * canvas.width; 
           let y = pt.y * canvas.height;
 
-          // Restored the exact Y calculation from the version that worked perfectly
-          const pitchOffset = (nose.y - chin.y) * 0.5;
-          y = y + (faceWidth * 0.16) + (pitchOffset * canvas.height * 0.2); 
-
-          // Restored your exact UI Slider Logic
+          // Apply manual UI sliders purely and cleanly
           y = y + (faceWidth * (offsetRefY.current / 100));
           const push = faceWidth * (offsetRefX.current / 100);
-          x = (a.side === "left") ? x - push : x + push;
+          x = (a.side === "screen-left") ? x - push : x + push;
 
-          // --- FIXED OCCLUSION FADE ---
+          // --- 3. CORRECT OCCLUSION & DEPTH ---
           let zScale = 1.0;
           let opacity = 1.0;
-          const depthMultiplier = 1.2;
 
-          if (a.side === "left") {
-             zScale = 1 + (0.5 - yawRatio) * depthMultiplier; 
-             // If nose points to the right side of screen, fade the left earring
-             if (yawRatio > 0.6) opacity = Math.max(0, 1 - (yawRatio - 0.6) * 5); 
+          if (a.side === "screen-left") {
+             // If looking Screen-Left, the Screen-Left ear comes forward
+             zScale = 1 + (0.5 - turnRatio) * 1.2; 
+             // If looking Screen-Right, the Screen-Left ear hides behind the neck
+             if (turnRatio > 0.6) opacity = Math.max(0, 1 - (turnRatio - 0.6) * 6); 
           } else {
-             zScale = 1 - (0.5 - yawRatio) * depthMultiplier;
-             // If nose points to the left side of screen, fade the right earring
-             if (yawRatio < 0.4) opacity = Math.max(0, 1 - (0.4 - yawRatio) * 5);
+             // If looking Screen-Right, the Screen-Right ear comes forward
+             zScale = 1 - (0.5 - turnRatio) * 1.2;
+             // If looking Screen-Left, the Screen-Right ear hides behind the neck
+             if (turnRatio < 0.4) opacity = Math.max(0, 1 - (0.4 - turnRatio) * 6);
           }
 
           zScale = Math.max(0.6, Math.min(zScale, 1.4)); 
 
-          if (opacity <= 0) return; 
+          if (opacity <= 0) return; // Completely hidden
 
           const eW = faceWidth * activeData.w * zScale;
           const eH = eW * activeData.h;
@@ -150,7 +149,7 @@ function App() {
             ctx.save();
             ctx.globalAlpha = opacity; 
             ctx.translate(x, y);
-            ctx.rotate(-headRoll * 0.8); // Natural gravity hang
+            ctx.rotate(safeTilt); // Keeps earrings pointing at the floor
             ctx.drawImage(activeImg, -eW/2, 0, eW, eH);
             ctx.restore();
           }
