@@ -1,47 +1,22 @@
-/* Base Styles */
+/* --- RESET & BASE --- */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { margin: 0; overflow: hidden; background: #000; font-family: 'Georgia', serif; }
+
 .app-wrapper {
-  text-align: center;
-  background-color: #000;
-  min-height: 100vh;
-  color: #D4AF37;
-  font-family: serif;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
-  box-sizing: border-box;
-}
-
-.app-header h1 {
-  font-size: 2.8rem;
-  margin: 0;
-  letter-spacing: 2px;
-}
-
-.app-header p {
-  color: #fff;
-  font-size: 1.2rem;
-  font-style: italic;
-  margin-top: 10px;
-}
-
-/* The Magic Fix for the AI Coordinates */
-.kiosk-container {
-  width: 100%;
-  max-width: 640px; 
-  margin-top: 20px;
-  border: 8px solid #D4AF37;
-  border-radius: 10px;
-  background-color: #111;
-  box-shadow: 0 10px 30px rgba(212, 175, 55, 0.3);
-  box-sizing: border-box;
-}
-
-.video-container {
   position: relative;
-  width: 100%;
-  aspect-ratio: 4 / 3; 
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
+}
+
+/* --- THE CAMERA & AI CANVAS (Send to back) --- */
+.kiosk-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
 }
 
 .video-layer, .canvas-layer {
@@ -50,70 +25,82 @@
   left: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: cover; /* Makes video fill screen without stretching */
 }
 
 .canvas-layer {
-  z-index: 10;
-  pointer-events: none;
+  z-index: 2; /* Canvas sits right on top of video */
 }
 
-/* Button Layout */
-.button-container {
+/* --- THE UI (Float on top) --- */
+.app-header {
+  position: absolute;
+  top: 0;
+  width: 100%;
+  z-index: 10;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
+  text-align: center;
+  padding: 20px 0 40px 0;
+  color: #D4AF37; 
+}
+
+.app-header h1 {
+  font-size: 1.5rem;
+  margin-bottom: 15px;
+  letter-spacing: 2px;
+}
+
+/* Buttons */
+.category-bar button, .item-selector button {
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid #D4AF37;
+  color: #FFF;
+  padding: 10px 20px;
+  margin: 0 5px;
+  border-radius: 30px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.category-bar button.active, .item-selector button.active {
+  background: #D4AF37;
+  color: #000;
+  font-weight: bold;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+}
+
+.item-selector {
+  position: absolute;
+  bottom: 120px;
+  width: 100%;
+  z-index: 10;
   display: flex;
   justify-content: center;
-  gap: 20px;
-  margin-top: 40px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Calibration Panel */
+.calibration-panel {
+  position: absolute;
+  bottom: 30px;
   width: 100%;
-  max-width: 600px;
-}
-
-.kiosk-btn {
-  flex: 1;
-  padding: 18px 20px;
-  font-size: 18px;
-  background-color: #222;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
   color: #D4AF37;
-  border: 2px solid #D4AF37;
-  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 15px;
+  border-top: 1px solid #333;
+}
+
+.calibration-panel input[type="range"] {
+  width: 150px;
   cursor: pointer;
-  font-weight: bold;
-  transition: all 0.3s ease;
 }
 
-.kiosk-btn.active {
-  background-color: #D4AF37;
-  color: black;
-  box-shadow: 0 0 20px rgba(212, 175, 55, 0.6);
-}
-
-.app-footer {
-  margin-top: auto;
-  padding-top: 30px;
-  color: #666;
-  font-size: 0.9rem;
-}
-
-/* --- THE MOBILE FIX --- */
-@media (max-width: 768px) {
-  .app-wrapper {
-    padding: 10px;
-  }
-  
-  .app-header h1 {
-    font-size: 1.8rem; 
-  }
-
-  .button-container {
-    flex-direction: column; 
-    gap: 15px;
-  }
-
-  .kiosk-btn {
-    width: 100%; 
-    padding: 15px;
-  }
-}
 /* --- PREMIUM LOADING SPLASH SCREEN --- */
 .loading-overlay {
   position: fixed;
@@ -122,13 +109,12 @@
   width: 100vw;
   height: 100vh;
   background-color: #0a0a0a;
-  color: #D4AF37; /* Akarapu Gold */
+  color: #D4AF37;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   z-index: 9999;
-  font-family: 'Georgia', serif;
 }
 
 .loading-overlay::after {
@@ -146,3 +132,8 @@
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+.app-footer {
+  display: none; /* Hidden to keep the AR screen clean */
+}
+
