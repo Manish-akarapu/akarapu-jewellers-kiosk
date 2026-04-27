@@ -5,8 +5,6 @@ import Webcam from "react-webcam";
 import './App.css'; 
 
 // --- THE MASTER CATALOG WITH MEMORY ---
-// w: width, h: height
-// x: horizontal perfect spot, y: vertical perfect spot
 const EARRING_CATALOG = [
   { id: "e1", name: "ANTIQUE JHUMKA", path: "/e1.png", w: 0.22, h: 1.5, x: -6, y: 0 },
   { id: "e2", name: "DIAMOND DROP", path: "/e2.png", w: 0.15, h: 1.6, x: -4, y: 3 }, 
@@ -23,7 +21,9 @@ function App() {
   const [activeItem, setActiveItem] = useState(EARRING_CATALOG[0].path);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Sliders now start at the exact position of the first earring
+  // Secret Admin State
+  const [showCalibration, setShowCalibration] = useState(false);
+
   const [offsetX, setOffsetX] = useState(EARRING_CATALOG[0].x);
   const [offsetY, setOffsetY] = useState(EARRING_CATALOG[0].y);
   
@@ -41,12 +41,10 @@ function App() {
     return obj;
   }, []);
 
-  // --- THE NEW AUTO-JUMP LOGIC ---
   const handleUpdateItem = (item) => {
     setActiveItem(item.path);
     itemRef.current = item.path;
     
-    // Automatically move the sliders to the saved perfect spots
     setOffsetX(item.x);
     setOffsetY(item.y);
     offsetRefX.current = item.x;
@@ -80,6 +78,11 @@ function App() {
 
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
+      
+      // Realism: Drop Shadow
+      ctx.shadowColor = "rgba(0, 0, 0, 0.4)"; 
+      ctx.shadowBlur = 12;                    
+      ctx.shadowOffsetY = 4;
 
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         const landmarks = results.multiFaceLandmarks[0];
@@ -145,7 +148,7 @@ function App() {
         <canvas ref={canvasRef} className="canvas-layer" />
       </div>
 
-      <div className="item-selector" style={{ bottom: "100px", padding: "0 20px" }}>
+      <div className="item-selector" style={{ bottom: "80px", padding: "0 20px" }}>
         {EARRING_CATALOG.map((item) => (
           <button 
             key={item.id}
@@ -158,13 +161,24 @@ function App() {
         ))}
       </div>
 
-      <div className="calibration-panel">
-        <label>X: <b>{offsetX}</b></label>
-        <input type="range" min="-20" max="40" value={offsetX} onChange={(e) => {setOffsetX(Number(e.target.value)); offsetRefX.current = Number(e.target.value);}} />
-        
-        <label style={{marginLeft: "15px"}}>Y: <b>{offsetY}</b></label>
-        <input type="range" min="-10" max="50" value={offsetY} onChange={(e) => {setOffsetY(Number(e.target.value)); offsetRefY.current = Number(e.target.value);}} />
-      </div>
+      {/* --- SECRET ADMIN TOGGLE BUTTON --- */}
+      <button 
+        className="admin-toggle-btn" 
+        onClick={() => setShowCalibration(!showCalibration)}
+      >
+        ⚙️
+      </button>
+
+      {/* --- CALIBRATION PANEL (ONLY SHOWS IF TOGGLED ON) --- */}
+      {showCalibration && (
+        <div className="calibration-panel" style={{ bottom: "20px" }}>
+          <label>X: <b>{offsetX}</b></label>
+          <input type="range" min="-20" max="40" value={offsetX} onChange={(e) => {setOffsetX(Number(e.target.value)); offsetRefX.current = Number(e.target.value);}} />
+          
+          <label style={{marginLeft: "15px"}}>Y: <b>{offsetY}</b></label>
+          <input type="range" min="-10" max="50" value={offsetY} onChange={(e) => {setOffsetY(Number(e.target.value)); offsetRefY.current = Number(e.target.value);}} />
+        </div>
+      )}
     </div>
   );
 }
