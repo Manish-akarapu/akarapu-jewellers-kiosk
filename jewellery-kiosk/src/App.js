@@ -4,7 +4,9 @@ import * as cam from "@mediapipe/camera_utils";
 import Webcam from "react-webcam";
 import './App.css'; 
 
-// --- THE MASTER CATALOG ---
+// --- THE MASTER CATALOG WITH MEMORY ---
+// w: width, h: height
+// x: horizontal perfect spot, y: vertical perfect spot
 const EARRING_CATALOG = [
   { id: "e1", name: "ANTIQUE JHUMKA", path: "/e1.png", w: 0.22, h: 1.5, x: -6, y: 0 },
   { id: "e2", name: "DIAMOND DROP", path: "/e2.png", w: 0.15, h: 1.6, x: -4, y: 3 }, 
@@ -22,6 +24,7 @@ function App() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [showCalibration, setShowCalibration] = useState(false);
 
+  // Sliders initialize at the perfect spot of the first item
   const [offsetX, setOffsetX] = useState(EARRING_CATALOG[0].x);
   const [offsetY, setOffsetY] = useState(EARRING_CATALOG[0].y);
   
@@ -29,6 +32,7 @@ function App() {
   const offsetRefX = useRef(EARRING_CATALOG[0].x);
   const offsetRefY = useRef(EARRING_CATALOG[0].y);
 
+  // Pre-load all jewelry images
   const images = useMemo(() => {
     const obj = {};
     EARRING_CATALOG.forEach(item => {
@@ -43,6 +47,7 @@ function App() {
     setActiveItem(item.path);
     itemRef.current = item.path;
     
+    // Automatically apply perfect coordinates
     setOffsetX(item.x);
     setOffsetY(item.y);
     offsetRefX.current = item.x;
@@ -74,6 +79,7 @@ function App() {
       }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+      // --- HD RENDERING & SHADOW REALISM ---
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
       
@@ -84,18 +90,18 @@ function App() {
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         const landmarks = results.multiFaceLandmarks[0];
         const faceWidth = Math.abs(landmarks[454].x - landmarks[234].x) * canvas.width;
-        
-        // --- 3D MATH PREPARATION ---
+        const chin = landmarks[152];
         const nose = landmarks[1];
-        const leftEye = landmarks[33];
-        const rightEye = landmarks[263];
         
-        // 1. Calculate Head Roll (Tilting head left to shoulder or right to shoulder)
+        // --- FIXED 3D MATH FOR MIRRORED CANVAS ---
+        const leftEye = { x: (1 - landmarks[33].x) * canvas.width, y: landmarks[33].y * canvas.height };
+        const rightEye = { x: (1 - landmarks[263].x) * canvas.width, y: landmarks[263].y * canvas.height };
+        
+        // Calculate Tilt (Gravity anchoring)
         const headRoll = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x);
         
-        // 2. Calculate Head Yaw (Turning head to look left or right)
-        const faceCenterX = (landmarks[234].x + landmarks[454].x) / 2;
-        const headYaw = nose.x - faceCenterX; 
+        // Calculate Turn (0.0 = extreme right, 1.0 = extreme left, 0.5 = forward)
+        const yawRatio = (nose.x - landmarks[234].x) / (landmarks[454].x - landmarks[234].x);
 
         const activeData = EARRING_CATALOG.find(item => item.path === itemRef.current) || EARRING_CATALOG[0];
         const anchors = [{ id: 234, side: "left" }, { id: 454, side: "right" }];
@@ -107,19 +113,34 @@ function App() {
           let x = (1 - pt.x) * canvas.width;
           let y = pt.y * canvas.height;
 
-          // Apply manual calibration offsets directly to the pivot point
+          // Pitch (Up/Down) adjustment
+          const pitchOffset = (nose.y - chin.y) * 0.5;
+          y = y + (faceWidth * 0.16) + (pitchOffset * canvas.height * 0.2); 
+
+          // Apply saved manual calibration
           y = y + (faceWidth * (offsetRefY.current / 100));
           const push = faceWidth * (offsetRefX.current / 100);
           x = (a.side === "left") ? x - push : x + push;
 
-          // --- Z-DEPTH: DYNAMIC SCALING ---
-          // If turning right, left side grows (+ yaw), right side shrinks (- yaw)
+          // --- EXAGGERATED 3D DEPTH & OCCLUSION ---
           let zScale = 1.0;
-          if (a.side === "left") zScale = 1 + (headYaw * 3);
-          else zScale = 1 - (headYaw * 3);
-          
-          // Clamp the scale so it doesn't get ridiculously large or completely disappear
-          zScale = Math.max(0.6, Math.min(zScale, 1.4));
+          let opacity = 1.0;
+          const depthStrength = 1.8; // Drastically exaggerates the shrink/grow effect
+
+          if (a.side === "left") {
+             zScale = 1 + (0.5 - yawRatio) * depthStrength; 
+             // Faster fade out when turning right
+             if (yawRatio > 0.60) opacity = Math.max(0, 1 - (yawRatio - 0.60) * 8); 
+          } else {
+             zScale = 1 - (0.5 - yawRatio) * depthStrength;
+             // Faster fade out when turning left
+             if (yawRatio < 0.40) opacity = Math.max(0, 1 - (0.40 - yawRatio) * 8);
+          }
+
+          zScale = Math.max(0.5, Math.min(zScale, 1.4)); // Cap the size limits
+
+          // If completely hidden behind the neck, skip drawing entirely!
+          if (opacity <= 0) return;
 
           const eW = faceWidth * activeData.w * zScale;
           const eH = eW * activeData.h;
@@ -127,17 +148,10 @@ function App() {
           const activeImg = images[itemRef.current];
           if (activeImg && activeImg.complete) {
             ctx.save();
-            
-            // Move the canvas origin exactly to the earlobe
+            ctx.globalAlpha = opacity; 
             ctx.translate(x, y);
-            
-            // --- GRAVITY ANCHORING ---
-            // Counter-rotate the earring so it always points down, resisting the head tilt
-            ctx.rotate(-headRoll * 0.8); // 0.8 adds a slight "stiffness" to the gold
-            
-            // Draw the image around the new pivot point
+            ctx.rotate(-headRoll * 0.8); // Gravity Anchor
             ctx.drawImage(activeImg, -eW/2, 0, eW, eH);
-            
             ctx.restore();
           }
         });
@@ -185,8 +199,10 @@ function App() {
         ))}
       </div>
 
+      {/* --- SECRET ADMIN TOGGLE BUTTON --- */}
       <button className="admin-toggle-btn" onClick={() => setShowCalibration(!showCalibration)}>⚙️</button>
 
+      {/* --- CALIBRATION PANEL (ONLY SHOWS IF TOGGLED ON) --- */}
       {showCalibration && (
         <div className="calibration-panel" style={{ bottom: "20px" }}>
           <label>X: <b>{offsetX}</b></label>
