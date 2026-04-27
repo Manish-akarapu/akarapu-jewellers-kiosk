@@ -9,39 +9,40 @@ function App() {
   const canvasRef = useRef(null);
   const cameraRef = useRef(null); 
   
-  // --- STATE MANAGEMENT ---
-  const [activeTab, setActiveTab] = useState("earrings"); // earrings, nose, neck
-  const [selectedJewel, setSelectedJewel] = useState("/earring1.png");
+  const [category, setCategory] = useState("earrings");
+  const [activeItem, setActiveItem] = useState("/earring1.png");
   const [showExtra, setShowExtra] = useState(false);
   
   const itemRef = useRef("/earring1.png");
   const extraRef = useRef(false);
-  const tabRef = useRef("earrings");
+  const categoryRef = useRef("earrings");
 
-  // Calibration (We'll use these for the main earrings)
-  const [offsetX, setOffsetX] = useState(0); 
-  const [offsetY, setOffsetY] = useState(13); 
+  // Keeping these as they are used for manual logic
   const offsetRefX = useRef(0);
   const offsetRefY = useRef(13);
 
   const images = useMemo(() => {
-    const names = ["earring1", "earring2", "extra", "nath", "puligoru", "kanthi", "stud"];
-    const imgs = {};
-    names.forEach(n => {
-      const i = new Image();
-      i.src = `/${n}.png`;
-      imgs[`/${n}.png`] = i;
+    const list = ["earring1", "earring2", "extra", "nath", "puligoru", "kanthi", "stud"];
+    const obj = {};
+    list.forEach(name => {
+      const img = new Image();
+      img.src = `/${name}.png`;
+      obj[`/${name}.png`] = img;
     });
-    return imgs;
+    return obj;
   }, []);
 
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    tabRef.current = tab;
-    // Set default item for each tab
-    if(tab === "earrings") { setSelectedJewel("/earring1.png"); itemRef.current = "/earring1.png"; }
-    if(tab === "nose") { setSelectedJewel("/nath.png"); itemRef.current = "/nath.png"; }
-    if(tab === "neck") { setSelectedJewel("/kanthi.png"); itemRef.current = "/kanthi.png"; }
+  const handleUpdateItem = (path) => {
+    setActiveItem(path);
+    itemRef.current = path;
+  };
+
+  const handleCategoryChange = (cat) => {
+    setCategory(cat);
+    categoryRef.current = cat;
+    if (cat === "earrings") handleUpdateItem("/earring1.png");
+    if (cat === "nose") handleUpdateItem("/nath.png");
+    if (cat === "necklace") handleUpdateItem("/kanthi.png");
   };
 
   useEffect(() => {
@@ -71,11 +72,8 @@ function App() {
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         const landmarks = results.multiFaceLandmarks[0];
         const faceWidth = Math.abs(landmarks[454].x - landmarks[234].x) * canvas.width;
-        const nose = landmarks[1];
-        const chin = landmarks[152];
 
-        // --- 1. EARRINGS LOGIC ---
-        if (tabRef.current === "earrings") {
+        if (categoryRef.current === "earrings") {
           const anchors = [{ id: 234, side: "left" }, { id: 454, side: "right" }];
           anchors.forEach(a => {
             const pt = landmarks[a.id];
@@ -84,47 +82,40 @@ function App() {
             const push = faceWidth * (offsetRefX.current / 100);
             x = (a.side === "left") ? x - push : x + push;
 
-            const img = images[itemRef.current];
-            if (img?.complete) {
-                const ew = faceWidth * 0.22;
-                ctx.drawImage(img, x - ew/2, y, ew, ew * 1.5);
-            }
+            const eW = faceWidth * 0.22;
+            const eH = eW * 1.5;
+            ctx.drawImage(images[itemRef.current], x - eW/2, y, eW, eH);
 
             if (extraRef.current) {
-                const exImg = images["/extra.png"];
-                if (exImg?.complete) {
-                    const exW = faceWidth * 0.1;
-                    const exX = (a.side === "left") ? x + 20 : x - 20;
-                    ctx.drawImage(exImg, exX - exW/2, y - 30, exW, exW);
-                }
+              const exW = eW * 0.6;
+              ctx.drawImage(images["/extra.png"], x + (a.side === "left" ? 15 : -15), y - 25, exW, exW);
             }
           });
         }
 
-        // --- 2. NATH (CHEST-TO-NOSE) LOGIC ---
-        if (tabRef.current === "nose") {
+        if (categoryRef.current === "nose") {
           const nostril = landmarks[279];
-          const earAttach = landmarks[127]; // Side of face
+          const sideFace = landmarks[234];
           let nx = (1 - nostril.x) * canvas.width;
           let ny = nostril.y * canvas.height;
-          let ex = (1 - earAttach.x) * canvas.width;
-          
-          const nathImg = images["/nath.png"];
-          if (nathImg?.complete) {
-            const nathW = Math.abs(ex - nx) * 1.3;
-            ctx.drawImage(nathImg, nx - 10, ny - 10, nathW, nathW * 0.6);
-          }
+          let sx = (1 - sideFace.x) * canvas.width;
+          const nathWidth = Math.abs(sx - nx) * 1.1; 
+          const angle = Math.atan2(sideFace.y - nostril.y, sideFace.x - nostril.x);
+
+          ctx.save();
+          ctx.translate(nx, ny);
+          ctx.rotate(-angle * 0.5);
+          ctx.drawImage(images["/nath.png"], -10, -20, nathWidth, faceWidth * 0.4);
+          ctx.restore();
         }
 
-        // --- 3. NECKLACE / PULI GORU LOGIC ---
-        if (tabRef.current === "neck") {
-          const neckX = (1 - chin.x) * canvas.width;
-          const neckY = chin.y * canvas.height + 15;
-          const neckImg = images[itemRef.current];
-          if (neckImg?.complete) {
-            const nw = faceWidth * 1.4;
-            ctx.drawImage(neckImg, neckX - nw/2, neckY, nw, nw * 0.9);
-          }
+        if (categoryRef.current === "necklace") {
+          const chin = landmarks[152];
+          let cx = (1 - chin.x) * canvas.width;
+          let cy = chin.y * canvas.height + (faceWidth * 0.1);
+          const nWidth = faceWidth * 1.4;
+          const nHeight = nWidth * 0.9;
+          ctx.drawImage(images[itemRef.current], cx - nWidth/2, cy, nWidth, nHeight);
         }
       }
     });
@@ -142,39 +133,46 @@ function App() {
   return (
     <div className="app-wrapper">
       <header className="app-header">
-        <h1 style={{color: "#D4AF37", letterSpacing: "2px"}}>SHRI AKARAPU KUMARASWAMY JEWELLERS</h1>
-        <div className="tab-menu">
-          <button onClick={() => handleTabChange("earrings")} className={activeTab === "earrings" ? "active" : ""}>EARRINGS</button>
-          <button onClick={() => handleTabChange("nose")} className={activeTab === "nose" ? "active" : ""}>NATH</button>
-          <button onClick={() => handleTabChange("neck")} className={activeTab === "neck" ? "active" : ""}>NECKWEAR</button>
+        <h1>SHRI AKARAPU KUMARASWAMY JEWELLERS</h1>
+        <div className="category-bar">
+          <button className={category === "earrings" ? "active" : ""} onClick={() => handleCategoryChange("earrings")}>EARRINGS</button>
+          <button className={category === "nose" ? "active" : ""} onClick={() => handleCategoryChange("nose")}>NATH</button>
+          <button className={category === "necklace" ? "active" : ""} onClick={() => handleCategoryChange("necklace")}>NECKLACES</button>
         </div>
       </header>
 
-      <div className="kiosk-body">
-        <div className="video-wrap">
-          <Webcam ref={webcamRef} mirrored={true} className="video-feed" />
-          <canvas ref={canvasRef} className="canvas-overlay" />
-        </div>
-
-        <div className="controls-side">
-          <h3 style={{color: "#D4AF37"}}>Select Style</h3>
-          {activeTab === "earrings" && (
-            <div className="btn-group">
-              <button onClick={() => {itemRef.current="/earring1.png"; setSelectedJewel("/earring1.png")}}>Antique Jhumka</button>
-              <button onClick={() => {itemRef.current="/stud.png"; setSelectedJewel("/stud.png")}}>Diamond Stud</button>
-              <button onClick={() => {extraRef.current = !showExtra; setShowExtra(!showExtra)}} style={{borderColor: "#FFD700"}}>
-                {showExtra ? "Remove Butterfly" : "+ Add 2nd Piercing"}
-              </button>
-            </div>
-          )}
-          {activeTab === "neck" && (
-            <div className="btn-group">
-              <button onClick={() => {itemRef.current="/kanthi.png"; setSelectedJewel("/kanthi.png")}}>Royal Kanthi</button>
-              <button onClick={() => {itemRef.current="/puligoru.png"; setSelectedJewel("/puligoru.png")}}>Puli Goru</button>
-            </div>
-          )}
-        </div>
+      <div className="kiosk-container">
+        <Webcam ref={webcamRef} mirrored={true} className="video-layer" />
+        <canvas ref={canvasRef} className="canvas-layer" />
       </div>
+
+      <div className="item-selector">
+        {category === "earrings" && (
+          <>
+            <button onClick={() => handleUpdateItem("/earring1.png")} className={activeItem === "/earring1.png" ? "active" : ""}>JHUMKA</button>
+            <button onClick={() => handleUpdateItem("/earring2.png")} className={activeItem === "/earring2.png" ? "active" : ""}>DIAMOND</button>
+            <button onClick={() => handleUpdateItem("/stud.png")} className={activeItem === "/stud.png" ? "active" : ""}>MEN STUD</button>
+            <button className="gold-btn" onClick={() => {setShowExtra(!showExtra); extraRef.current = !showExtra}}>
+              {showExtra ? "REMOVE BUTTERFLY" : "+ ADD BUTTERFLY"}
+            </button>
+          </>
+        )}
+        {category === "necklace" && (
+          <>
+            <button onClick={() => handleUpdateItem("/kanthi.png")} className={activeItem === "/kanthi.png" ? "active" : ""}>KANTHI</button>
+            <button onClick={() => handleUpdateItem("/puligoru.png")} className={activeItem === "/puligoru.png" ? "active" : ""}>PULI GORU</button>
+          </>
+        )}
+      </div>
+
+      <div className="calibration-panel">
+        <input type="range" min="-20" max="40" defaultValue="0" onChange={(e) => {offsetRefX.current = Number(e.target.value);}} />
+        <input type="range" min="-10" max="50" defaultValue="13" onChange={(e) => {offsetRefY.current = Number(e.target.value);}} />
+      </div>
+      
+      <footer className="app-footer">
+        <p>Nagarkurnool • Experience Royal Jewellery</p>
+      </footer>
     </div>
   );
 }
