@@ -28,7 +28,7 @@
 /* The Magic Fix for the AI Coordinates */
 .kiosk-container {
   width: 100%;
-  max-width: 640px; /* Limits size on desktop, scales down on mobile */
+  max-width: 640px; 
   margin-top: 20px;
   border: 8px solid #D4AF37;
   border-radius: 10px;
@@ -40,7 +40,7 @@
 .video-container {
   position: relative;
   width: 100%;
-  aspect-ratio: 4 / 3; /* THIS is the secret. It forces the video and canvas to shrink perfectly together */
+  aspect-ratio: 4 / 3; 
   overflow: hidden;
 }
 
@@ -95,23 +95,54 @@
 }
 
 /* --- THE MOBILE FIX --- */
-/* If the screen is smaller than a tablet, do this instead: */
 @media (max-width: 768px) {
   .app-wrapper {
     padding: 10px;
   }
   
   .app-header h1 {
-    font-size: 1.8rem; /* Shrink title so it doesn't break */
+    font-size: 1.8rem; 
   }
 
   .button-container {
-    flex-direction: column; /* Stack buttons vertically */
+    flex-direction: column; 
     gap: 15px;
   }
 
   .kiosk-btn {
-    width: 100%; /* Make buttons full width */
+    width: 100%; 
     padding: 15px;
   }
+}
+/* --- PREMIUM LOADING SPLASH SCREEN --- */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #0a0a0a;
+  color: #D4AF37; /* Akarapu Gold */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  font-family: 'Georgia', serif;
+}
+
+.loading-overlay::after {
+  content: "";
+  margin-top: 20px;
+  width: 40px;
+  height: 40px;
+  border: 4px solid #333;
+  border-top: 4px solid #D4AF37;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
