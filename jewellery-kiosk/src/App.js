@@ -9,10 +9,10 @@ import './App.css';
 // h: height multiplier (1.5 is standard, 1.8 is long/dangling)
 const EARRING_CATALOG = [
   { id: "e1", name: "ANTIQUE JHUMKA", path: "/e1.png", w: 0.22, h: 1.5 },
-  { id: "e2", name: "DIAMOND DROP", path: "/e2.png", w: 0.15, h: 1.6 }, // Narrower & delicate
+  { id: "e2", name: "DIAMOND DROP", path: "/e2.png", w: 0.15, h: 1.6 }, 
   { id: "e3", name: "NAWABI JHUMKA", path: "/e3.png", w: 0.22, h: 1.5 },
-  { id: "e4", name: "TEARDROP SWIRL", path: "/e4.png", w: 0.17, h: 1.3 }, // Overall smaller
-  { id: "e5", name: "GOLD CHANDELIER", path: "/e5.png", w: 0.24, h: 1.4 }  // Wider Chandbali
+  { id: "e4", name: "TEARDROP SWIRL", path: "/e4.png", w: 0.17, h: 1.3 }, 
+  { id: "e5", name: "GOLD CHANDELIER", path: "/e5.png", w: 0.24, h: 1.4 }  
 ];
 
 function App() {
@@ -70,6 +70,10 @@ function App() {
       }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+      // --- HIGH QUALITY RENDERING FIX ---
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         const landmarks = results.multiFaceLandmarks[0];
         const faceWidth = Math.abs(landmarks[454].x - landmarks[234].x) * canvas.width;
@@ -88,15 +92,16 @@ function App() {
           let x = (1 - pt.x) * canvas.width;
           let y = pt.y * canvas.height;
 
+          // Pitch adjustment (moves earring up/down when looking up/down)
           const pitchOffset = (nose.y - chin.y) * 0.5;
           y = y + (faceWidth * 0.16) + (pitchOffset * canvas.height * 0.2); 
 
+          // Apply UI calibration offsets
           y = y + (faceWidth * (offsetRefY.current / 100));
           const push = faceWidth * (offsetRefX.current / 100);
           x = (a.side === "left") ? x - push : x + push;
 
-          // --- THE SIZING FIX ---
-          // Uses the specific 'w' and 'h' you set in the catalog array!
+          // Scale using custom width (w) and height (h)
           const eW = faceWidth * activeData.w;
           const eH = eW * activeData.h;
 
