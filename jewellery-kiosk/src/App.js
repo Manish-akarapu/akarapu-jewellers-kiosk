@@ -5,8 +5,6 @@ import Webcam from "react-webcam";
 import './App.css'; 
 
 // --- THE MASTER CATALOG WITH MEMORY ---
-// w: width, h: height
-// x: horizontal perfect spot, y: vertical perfect spot
 const EARRING_CATALOG = [
   { id: "e1", name: "ANTIQUE JHUMKA", path: "/e1.png", w: 0.22, h: 1.5, x: -6, y: 0 },
   { id: "e2", name: "DIAMOND DROP", path: "/e2.png", w: 0.15, h: 1.6, x: -4, y: 3 }, 
@@ -24,7 +22,6 @@ function App() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [showCalibration, setShowCalibration] = useState(false);
 
-  // Sliders initialize at the perfect spot of the first item
   const [offsetX, setOffsetX] = useState(EARRING_CATALOG[0].x);
   const [offsetY, setOffsetY] = useState(EARRING_CATALOG[0].y);
   
@@ -32,7 +29,6 @@ function App() {
   const offsetRefX = useRef(EARRING_CATALOG[0].x);
   const offsetRefY = useRef(EARRING_CATALOG[0].y);
 
-  // Pre-load all jewelry images
   const images = useMemo(() => {
     const obj = {};
     EARRING_CATALOG.forEach(item => {
@@ -47,7 +43,6 @@ function App() {
     setActiveItem(item.path);
     itemRef.current = item.path;
     
-    // Automatically apply perfect coordinates
     setOffsetX(item.x);
     setOffsetY(item.y);
     offsetRefX.current = item.x;
@@ -79,7 +74,6 @@ function App() {
       }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // --- HD RENDERING & SHADOW REALISM ---
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
       
@@ -90,17 +84,18 @@ function App() {
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         const landmarks = results.multiFaceLandmarks[0];
         const faceWidth = Math.abs(landmarks[454].x - landmarks[234].x) * canvas.width;
-        const chin = landmarks[152];
         const nose = landmarks[1];
         
-        // --- FIXED 3D MATH FOR MIRRORED CANVAS ---
-        const leftEye = { x: (1 - landmarks[33].x) * canvas.width, y: landmarks[33].y * canvas.height };
-        const rightEye = { x: (1 - landmarks[263].x) * canvas.width, y: landmarks[263].y * canvas.height };
+        // --- FIX 1: THE 180-DEGREE FLIP BUG ---
+        // We must map landmarks to Screen-Left and Screen-Right to prevent negative math
+        const screenLeftEye = landmarks[263]; 
+        const screenRightEye = landmarks[33]; 
         
-        // Calculate Tilt (Gravity anchoring)
-        const headRoll = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x);
+        const dx = screenRightEye.x - screenLeftEye.x;
+        const dy = screenRightEye.y - screenLeftEye.y;
+        const headRoll = Math.atan2(dy, dx); // Now calculates perfectly upright!
         
-        // Calculate Turn (0.0 = extreme right, 1.0 = extreme left, 0.5 = forward)
+        // Yaw Ratio for 3D occlusion
         const yawRatio = (nose.x - landmarks[234].x) / (landmarks[454].x - landmarks[234].x);
 
         const activeData = EARRING_CATALOG.find(item => item.path === itemRef.current) || EARRING_CATALOG[0];
@@ -113,34 +108,29 @@ function App() {
           let x = (1 - pt.x) * canvas.width;
           let y = pt.y * canvas.height;
 
-          // Pitch (Up/Down) adjustment
-          const pitchOffset = (nose.y - chin.y) * 0.5;
-          y = y + (faceWidth * 0.16) + (pitchOffset * canvas.height * 0.2); 
-
-          // Apply saved manual calibration
+          // --- FIX 2: STABLE Y-POSITIONING ---
+          // Drop it to the earlobe natively, then let your custom slider values take over
+          y = y + (faceWidth * 0.18); 
           y = y + (faceWidth * (offsetRefY.current / 100));
           const push = faceWidth * (offsetRefX.current / 100);
           x = (a.side === "left") ? x - push : x + push;
 
-          // --- EXAGGERATED 3D DEPTH & OCCLUSION ---
+          // --- 3D Z-DEPTH & FADE OCCLUSION ---
           let zScale = 1.0;
           let opacity = 1.0;
-          const depthStrength = 1.8; // Drastically exaggerates the shrink/grow effect
+          const depthStrength = 1.2; // Smoothed out for realism
 
           if (a.side === "left") {
              zScale = 1 + (0.5 - yawRatio) * depthStrength; 
-             // Faster fade out when turning right
              if (yawRatio > 0.60) opacity = Math.max(0, 1 - (yawRatio - 0.60) * 8); 
           } else {
              zScale = 1 - (0.5 - yawRatio) * depthStrength;
-             // Faster fade out when turning left
              if (yawRatio < 0.40) opacity = Math.max(0, 1 - (0.40 - yawRatio) * 8);
           }
 
-          zScale = Math.max(0.5, Math.min(zScale, 1.4)); // Cap the size limits
+          zScale = Math.max(0.6, Math.min(zScale, 1.4)); 
 
-          // If completely hidden behind the neck, skip drawing entirely!
-          if (opacity <= 0) return;
+          if (opacity <= 0) return; // Completely hidden behind neck
 
           const eW = faceWidth * activeData.w * zScale;
           const eH = eW * activeData.h;
@@ -150,7 +140,7 @@ function App() {
             ctx.save();
             ctx.globalAlpha = opacity; 
             ctx.translate(x, y);
-            ctx.rotate(-headRoll * 0.8); // Gravity Anchor
+            ctx.rotate(headRoll * 0.8); // Corrected upright rotation
             ctx.drawImage(activeImg, -eW/2, 0, eW, eH);
             ctx.restore();
           }
@@ -199,10 +189,8 @@ function App() {
         ))}
       </div>
 
-      {/* --- SECRET ADMIN TOGGLE BUTTON --- */}
       <button className="admin-toggle-btn" onClick={() => setShowCalibration(!showCalibration)}>⚙️</button>
 
-      {/* --- CALIBRATION PANEL (ONLY SHOWS IF TOGGLED ON) --- */}
       {showCalibration && (
         <div className="calibration-panel" style={{ bottom: "20px" }}>
           <label>X: <b>{offsetX}</b></label>
