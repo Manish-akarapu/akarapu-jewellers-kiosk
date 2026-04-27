@@ -12,12 +12,15 @@ function App() {
   const [category, setCategory] = useState("earrings");
   const [activeItem, setActiveItem] = useState("/earring1.png");
   const [showExtra, setShowExtra] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Calibration State (Restored for UI updates)
+  const [offsetX, setOffsetX] = useState(0);
+  const [offsetY, setOffsetY] = useState(13);
   
   const itemRef = useRef("/earring1.png");
   const extraRef = useRef(false);
   const categoryRef = useRef("earrings");
-
-  // Keeping these as they are used for manual logic
   const offsetRefX = useRef(0);
   const offsetRefY = useRef(13);
 
@@ -53,11 +56,12 @@ function App() {
     faceMesh.setOptions({
       maxNumFaces: 1,
       refineLandmarks: true,
-      minDetectionConfidence: 0.8,
-      minTrackingConfidence: 0.8 
+      minDetectionConfidence: 0.7, // Lowered slightly for faster detection
+      minTrackingConfidence: 0.7 
     });
 
     faceMesh.onResults((results) => {
+      setIsLoaded(true);
       if (!canvasRef.current || !webcamRef.current?.video) return;
       const video = webcamRef.current.video;
       const canvas = canvasRef.current;
@@ -73,6 +77,7 @@ function App() {
         const landmarks = results.multiFaceLandmarks[0];
         const faceWidth = Math.abs(landmarks[454].x - landmarks[234].x) * canvas.width;
 
+        // --- DRAWING: EARRINGS ---
         if (categoryRef.current === "earrings") {
           const anchors = [{ id: 234, side: "left" }, { id: 454, side: "right" }];
           anchors.forEach(a => {
@@ -84,7 +89,7 @@ function App() {
 
             const eW = faceWidth * 0.22;
             const eH = eW * 1.5;
-            ctx.drawImage(images[itemRef.current], x - eW/2, y, eW, eH);
+            if (images[itemRef.current]) ctx.drawImage(images[itemRef.current], x - eW/2, y, eW, eH);
 
             if (extraRef.current) {
               const exW = eW * 0.6;
@@ -93,6 +98,7 @@ function App() {
           });
         }
 
+        // --- DRAWING: NATH ---
         if (categoryRef.current === "nose") {
           const nostril = landmarks[279];
           const sideFace = landmarks[234];
@@ -105,33 +111,40 @@ function App() {
           ctx.save();
           ctx.translate(nx, ny);
           ctx.rotate(-angle * 0.5);
-          ctx.drawImage(images["/nath.png"], -10, -20, nathWidth, faceWidth * 0.4);
+          if (images["/nath.png"]) ctx.drawImage(images["/nath.png"], -10, -20, nathWidth, faceWidth * 0.4);
           ctx.restore();
         }
 
+        // --- DRAWING: NECKLACE ---
         if (categoryRef.current === "necklace") {
           const chin = landmarks[152];
           let cx = (1 - chin.x) * canvas.width;
           let cy = chin.y * canvas.height + (faceWidth * 0.1);
           const nWidth = faceWidth * 1.4;
           const nHeight = nWidth * 0.9;
-          ctx.drawImage(images[itemRef.current], cx - nWidth/2, cy, nWidth, nHeight);
+          if (images[itemRef.current]) ctx.drawImage(images[itemRef.current], cx - nWidth/2, cy, nWidth, nHeight);
         }
       }
     });
 
     if (webcamRef.current?.video && !cameraRef.current) {
       cameraRef.current = new cam.Camera(webcamRef.current.video, {
-        onFrame: async () => { await faceMesh.send({ image: webcamRef.current.video }); },
+        onFrame: async () => {
+          if (webcamRef.current?.video.readyState === 4) {
+            await faceMesh.send({ image: webcamRef.current.video });
+          }
+        },
         width: 640, height: 480,
       });
       cameraRef.current.start();
     }
-    return () => faceMesh.close();
+    return () => { if (cameraRef.current) { cameraRef.current.stop(); } faceMesh.close(); };
   }, [images]);
 
   return (
     <div className="app-wrapper">
+      {!isLoaded && <div className="loading-overlay">Initializing AI... Please wait.</div>}
+      
       <header className="app-header">
         <h1>SHRI AKARAPU KUMARASWAMY JEWELLERS</h1>
         <div className="category-bar">
@@ -142,7 +155,7 @@ function App() {
       </header>
 
       <div className="kiosk-container">
-        <Webcam ref={webcamRef} mirrored={true} className="video-layer" />
+        <Webcam ref={webcamRef} mirrored={true} videoConstraints={{ facingMode: "user" }} className="video-layer" />
         <canvas ref={canvasRef} className="canvas-layer" />
       </div>
 
@@ -151,7 +164,7 @@ function App() {
           <>
             <button onClick={() => handleUpdateItem("/earring1.png")} className={activeItem === "/earring1.png" ? "active" : ""}>JHUMKA</button>
             <button onClick={() => handleUpdateItem("/earring2.png")} className={activeItem === "/earring2.png" ? "active" : ""}>DIAMOND</button>
-            <button onClick={() => handleUpdateItem("/stud.png")} className={activeItem === "/stud.png" ? "active" : ""}>MEN STUD</button>
+            <button onClick={() => handleUpdateItem("/stud.png")} className={activeItem === "/stud.png" ? "active" : ""}>STUD</button>
             <button className="gold-btn" onClick={() => {setShowExtra(!showExtra); extraRef.current = !showExtra}}>
               {showExtra ? "REMOVE BUTTERFLY" : "+ ADD BUTTERFLY"}
             </button>
@@ -166,12 +179,13 @@ function App() {
       </div>
 
       <div className="calibration-panel">
-        <input type="range" min="-20" max="40" defaultValue="0" onChange={(e) => {offsetRefX.current = Number(e.target.value);}} />
-        <input type="range" min="-10" max="50" defaultValue="13" onChange={(e) => {offsetRefY.current = Number(e.target.value);}} />
+        <label>Fine-Tune: </label>
+        <input type="range" min="-20" max="40" value={offsetX} onChange={(e) => {setOffsetX(Number(e.target.value)); offsetRefX.current = Number(e.target.value);}} />
+        <input type="range" min="-10" max="50" value={offsetY} onChange={(e) => {setOffsetY(Number(e.target.value)); offsetRefY.current = Number(e.target.value);}} />
       </div>
       
       <footer className="app-footer">
-        <p>Nagarkurnool • Experience Royal Jewellery</p>
+        <p>Akarapu Jewellers • Nagarkurnool</p>
       </footer>
     </div>
   );
