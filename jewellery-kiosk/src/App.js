@@ -8,11 +8,11 @@ import './App.css';
 // w: width, h: height
 // x: horizontal perfect spot, y: vertical perfect spot
 const EARRING_CATALOG = [
-  { id: "e1", name: "ANTIQUE JHUMKA", path: "/e1.png", w: 0.22, h: 1.5, x: 0, y: 13 },
-  { id: "e2", name: "DIAMOND DROP", path: "/e2.png", w: 0.15, h: 1.6, x: 0, y: 13 }, 
-  { id: "e3", name: "NAWABI JHUMKA", path: "/e3.png", w: 0.22, h: 1.5, x: 0, y: 13 },
-  { id: "e4", name: "TEARDROP SWIRL", path: "/e4.png", w: 0.17, h: 1.3, x: 0, y: 13 }, 
-  { id: "e5", name: "GOLD CHANDELIER", path: "/e5.png", w: 0.24, h: 1.4, x: 0, y: 13 }  
+  { id: "e1", name: "ANTIQUE JHUMKA", path: "/e1.png", w: 0.22, h: 1.5, x: -6, y: 0 },
+  { id: "e2", name: "DIAMOND DROP", path: "/e2.png", w: 0.15, h: 1.6, x: -4, y: 3 }, 
+  { id: "e3", name: "NAWABI JHUMKA", path: "/e3.png", w: 0.22, h: 1.5, x: -5, y: 1 },
+  { id: "e4", name: "TEARDROP SWIRL", path: "/e4.png", w: 0.17, h: 1.3, x: -3, y: 3 }, 
+  { id: "e5", name: "GOLD CHANDELIER", path: "/e5.png", w: 0.24, h: 1.4, x: -3, y: 5 }  
 ];
 
 function App() {
